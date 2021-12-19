@@ -14,6 +14,11 @@ Base code for the model in "Land Property Rights, Financial Frictions,
 Illustrating solutions to the stationary equilibrium
 with value function iterations, and other basic techniques.
 """
+"""
+Parts of this code benifited a lot from the computational techiques 
+covered in Econ 416-2 "Advanced Macroeconomics" at Northwestern University
+taught by Matthew Rognlie
+"""
 
 function stationary(Pi,pi="None",atol=1E-10,maxit=10000)
     """computes stationary distribution of Markov chain with transition Pi via
@@ -270,6 +275,55 @@ function invdist_c(dlc, a, apolc, ocpolc, nu, Pi, lc, pireal, piexpr, D="None",a
 
     return Dnew
 end
+
+function stationary_dist(dlp, dlc, r, rk, rl, w, a, lp, zac, znc, pic, Pic, beta, alphaf, gammaf,
+    alphae, gammae, lambdk, eta1, lc, nu, piexpr, pireal, target_comm)
+    """Function that finds stationary distribution for both communal and private part of the economy, 
+    finds the share of households for each part to match distribution of land and total share of communal land,
+    and computes the aggregate values for capital, assets, labor, and land that used to check whether market clearing conditions are satisfied
+    """
+    get_all_c = value_iteration_com_rent(r, rk, rl,  w, a, lc,  zac, znc, pic, Pic, nu, beta, eta1, piexpr, pireal, alphaf, gammaf, alphae, gammae, lambdk)
+    Dc = invdist_c(dlc, a, get_all_c[6], get_all_c[2], nu, Pic, lc, pireal, piexpr)
+    get_policy_pr = value_iteration_pr( r, rk, rl, w, a, lp, zac, znc, pic, Pic, beta, alphaf, gammaf, alphae, gammae, lambdk, eta1)
+    Dpr = invdist_p(dlp, a, get_policy_pr[7], Pic, lp, "None")
+    
+    ac = sum(Dc .* get_all_c[6])
+    labc = sum(Dc .* get_all_c[7])
+    capc = sum(Dc .* get_all_c[8])
+    rentinc = sum(Dc .* get_all_c[4])
+    rentoutc = 0
+    workerc = sum(Dc .* get_all_c[9])
+    Dc_land = zeros(lcnum)
+        landc=sum(Dc .* get_all_c[10] .* get_all_c[3])
+        for i = 1:lcnum
+            Dc_land[i] = sum(Dc[:, i, :])
+        end
+    ap = sum(Dpr .* get_policy_pr[7])
+    labp = sum(Dpr .* get_policy_pr[8])
+    capp = sum(Dpr .* get_policy_pr[9])
+    rentinp = sum(Dpr .* get_policy_pr[4])
+    rentoutp = sum(Dpr .* get_policy_pr[5])
+    workerp = sum(Dpr .* get_policy_pr[10])
+    
+    #Find total share of households living under different property rights regimes
+    cland = sum(Dc_land .* lc)
+    pland = sum(dlp .* lp)
+    lambda1 = (cland * (1 - target_comm)) / (cland + (pland - cland) * target_comm)
+    
+    #Compute aggregate variables to check market clearing
+
+    at = ap * lambda1 + ac * (1 - lambda1)
+    capt = capc * (1 - lambda1) + capp * lambda1        
+    labt = labc * (1 - lambda1) + labp * lambda1
+    workert = workerc * (1 - lambda1) + workerp * lambda1
+    rout = rentoutp * lambda1+rentoutc*(1-lambda1)
+    rin = rentinc * (1 - lambda1) + rentinp * lambda1
+    realocation = sum(Dc[:, 1:lcnum-1, :] .* pireal .* nu .*get_all_c[10][:, 1:lcnum-1, :])
+    expropr = sum(piexpr .* (1 .- get_all_c[10]) .* Dc .*repeat(transpose(lc), size(zac)[1], 1, size(a)[1]))
+    
+    return (at, capt, labt, workert, realocation, expropr, rin, rout)
+       
+                                                               
 
 
 
